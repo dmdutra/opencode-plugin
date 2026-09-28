@@ -13,13 +13,13 @@ Query your Datadog data directly from OpenCode using natural language. Ask about
 
 > If you already have the Datadog MCP server registered separately in your `opencode.json`, disable or remove it first to avoid conflicts.
 
-**1. Add the plugin to your `opencode.json`** (create the file if it doesn't exist):
+**1. Add the plugin to your `opencode.json`** (or `.opencode/opencode.json`):
 
 ```json
-{ "plugin": ["@datadog/opencode-plugin"] }
+{ "plugins": ["@datadog/opencode-plugin"] }
 ```
 
-If you already have a `plugin` array, add `"@datadog/opencode-plugin"` to the existing list.
+If you already have a `plugins` array, add `"@datadog/opencode-plugin"` to the existing list.
 
 **2. Restart OpenCode.**
 
@@ -73,11 +73,13 @@ Instead of OAuth, you can authenticate using a Datadog API key and application k
 ```json
 {
   "mcp": {
-    "datadog": {
-      "type": "remote",
-      "url": "https://mcp.datadoghq.com/api/unstable/mcp-server/mcp",
-      "oauth": false,
-      "headers": { "DD_API_KEY": "{env:DD_API_KEY}", "DD_APPLICATION_KEY": "{env:DD_APPLICATION_KEY}" }
+    "servers": {
+      "datadog": {
+        "type": "remote",
+        "url": "https://mcp.datadoghq.com/api/unstable/mcp-server/mcp",
+        "oauth": false,
+        "headers": { "DD_API_KEY": "{env:DD_API_KEY}", "DD_APPLICATION_KEY": "{env:DD_APPLICATION_KEY}" }
+      }
     }
   }
 }
@@ -93,7 +95,7 @@ Replace the MCP domain in the URL if your organization uses a different Datadog 
 
 ### Environment variable overrides
 
-OpenCode supports `{env:VARIABLE_NAME}` substitution anywhere inside `opencode.json` — you can hand-edit the `mcp.datadog` entry to read values from the environment (for example, to swap the MCP domain per shell session). This is a manual workflow: the plugin's `ddsetup`, `ddconfig`, and `ddtoolsets` tools always write concrete values, so if you want `{env:…}` placeholders you need to add them yourself and they will be preserved across surgical edits (comments and unrelated keys are preserved too).
+OpenCode supports `{env:VARIABLE_NAME}` substitution anywhere inside `opencode.json` — you can hand-edit the `mcp.servers.datadog` entry to read values from the environment (for example, to swap the MCP domain per shell session). This is a manual workflow: the plugin's `ddsetup`, `ddconfig`, and `ddtoolsets` tools always write concrete values, so if you want `{env:…}` placeholders you need to add them yourself and they will be preserved across surgical edits (comments and unrelated keys are preserved too).
 
 ## Good to know
 

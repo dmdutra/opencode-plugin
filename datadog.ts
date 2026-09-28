@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed under the Apache-2.0 License.
 // This product includes software developed at Datadog (https://www.datadoghq.com/) Copyright 2026 Datadog, Inc.
 
-import type { PluginModule } from '@opencode-ai/plugin';
+import { Plugin } from '@opencode/plugin';
 
 import { createDdconfig } from './tools/ddconfig.js';
 import { createDdsetup } from './tools/ddsetup.js';
@@ -13,13 +13,21 @@ const PLUGIN_VERSION = '0.7.13';
 const PLUGIN_ID = 'opencode-plugin';
 const MCP_NAME = 'datadog';
 
-export default {
+export default Plugin.define({
   id: MCP_NAME,
-  async server({ client }) {
+  async setup(ctx) {
     const urls = makeUrlBuilder({ clientId: PLUGIN_ID, version: PLUGIN_VERSION });
-    const deps = { client, urls, mcpName: MCP_NAME };
-    return {
-      tool: { ddsetup: createDdsetup(deps), ddconfig: createDdconfig(deps), ddtoolsets: createDdtoolsets(deps) },
+    const deps = {
+      mcp: ctx.mcp,
+      directory: ctx.location.directory,
+      urls,
+      mcpName: MCP_NAME,
     };
+
+    await ctx.tool.transform((editor) => {
+      editor.add(createDdsetup(deps));
+      editor.add(createDdconfig(deps));
+      editor.add(createDdtoolsets(deps));
+    });
   },
-} satisfies PluginModule;
+});

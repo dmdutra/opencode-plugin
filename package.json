@@ -2,7 +2,7 @@
   "name": "@datadog/opencode-plugin",
   "version": "0.7.13",
   "description": "Use Datadog directly in OpenCode through a preconfigured Datadog MCP server. Query logs, metrics, traces, dashboards, and more through natural conversation. This plugin is in preview.",
-  "main": "datadog.ts",
+  "main": "index.ts",
   "author": "Datadog",
   "license": "Apache-2.0",
   "keywords": [
@@ -26,7 +26,7 @@
     "LICENSE-3rdparty.csv"
   ],
   "dependencies": {
-    "@opencode-ai/plugin": "^1.4.6",
+    "@opencode/plugin": "^2.0.0",
     "jsonc-parser": "^3.3.1"
   }
 }
