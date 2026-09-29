@@ -6,8 +6,8 @@
 // because they share the `McpEntry` shape and the `oauth: false` preservation
 // rule needs to live in one place.
 
-import { readFile, writeFile } from 'node:fs/promises';
-import { join } from 'node:path';
+import { mkdir, readFile, writeFile } from 'node:fs/promises';
+import { dirname, join } from 'node:path';
 import { type ParseError, applyEdits, modify, parse as parseJsonc, printParseErrorCode } from 'jsonc-parser';
 import type { MCPDomain } from '@opencode/plugin/promise/mcp';
 
@@ -29,7 +29,7 @@ export type OpenCodeConfig = {
   };
 };
 
-const CONFIG_FILES = [
+export const CONFIG_FILES = [
   join('.opencode', 'opencode.json'),
   join('.opencode', 'opencode.jsonc'),
   'opencode.json',
@@ -41,23 +41,14 @@ export type ReadResult =
   | { status: 'malformed'; file: string; reason: string }
   | { status: 'parsed'; file: string; text: string; config: OpenCodeConfig };
 
-const findConfigFile = async (dir: string): Promise<string | undefined> => {
-  for (const file of CONFIG_FILES) {
-    try {
-      await readFile(join(dir, file), 'utf8');
-      return file;
-    } catch {
-      // try next
-    }
+export const readConfigFile = async (dir: string, file: string): Promise<ReadResult> => {
+  let text: string;
+  try {
+    text = await readFile(join(dir, file), 'utf8');
+  } catch {
+    return { status: 'missing' };
   }
-  return undefined;
-};
 
-export const readConfig = async (dir: string): Promise<ReadResult> => {
-  const file = await findConfigFile(dir);
-  if (!file) return { status: 'missing' };
-
-  const text = await readFile(join(dir, file), 'utf8');
   const errors: ParseError[] = [];
   const parsed = parseJsonc(text, errors, { allowTrailingComma: true }) as unknown;
 
@@ -70,6 +61,24 @@ export const readConfig = async (dir: string): Promise<ReadResult> => {
     return { status: 'malformed', file, reason: 'top-level value is not an object' };
   }
   return { status: 'parsed', file, text, config: parsed as OpenCodeConfig };
+};
+
+export const findConfigFile = async (dir: string): Promise<string | undefined> => {
+  for (const file of CONFIG_FILES) {
+    try {
+      await readFile(join(dir, file), 'utf8');
+      return file;
+    } catch {
+      // try next
+    }
+  }
+  return undefined;
+};
+
+export const readConfig = async (dir: string, file?: string): Promise<ReadResult> => {
+  const targetFile = file ?? (await findConfigFile(dir));
+  if (!targetFile) return { status: 'missing' };
+  return readConfigFile(dir, targetFile);
 };
 
 export const getMcpEntry = (config: OpenCodeConfig, mcpName: string): McpEntry | undefined => {
@@ -112,7 +121,9 @@ export const persistEntry = async (
   const output = applyEdits(sourceText, edits);
   // Creating fresh — add trailing newline; editing — trust existing formatting.
   const finalText = read.status === 'parsed' ? output : `${output}\n`;
-  await writeFile(join(dir, targetFile), finalText);
+  const targetPath = join(dir, targetFile);
+  await mkdir(dirname(targetPath), { recursive: true });
+  await writeFile(targetPath, finalText);
 };
 
 export type ServerState =
@@ -121,15 +132,34 @@ export type ServerState =
   | { kind: 'configured'; read: Extract<ReadResult, { status: 'parsed' }>; entry: McpEntry; parsed: ParsedUrl };
 
 export const loadServerState = async (dir: string, mcpName: string): Promise<ServerState> => {
-  const read = await readConfig(dir);
-  if (read.status === 'malformed') return { kind: 'malformed-config', file: read.file, reason: read.reason };
-  if (read.status === 'missing') return { kind: 'not-setup', read };
+  let highestPrecedenceRead: Extract<ReadResult, { status: 'parsed' }> | undefined;
 
-  const entry = getMcpEntry(read.config, mcpName);
-  if (!entry?.url) return { kind: 'not-setup', read };
-  const parsed = parseMcpUrl(entry.url);
-  if (!parsed?.domain) return { kind: 'not-setup', read };
-  return { kind: 'configured', read, entry, parsed };
+  for (const file of CONFIG_FILES) {
+    const read = await readConfigFile(dir, file);
+    if (read.status === 'malformed') {
+      return { kind: 'malformed-config', file: read.file, reason: read.reason };
+    }
+    if (read.status === 'missing') {
+      continue;
+    }
+
+    // Keep track of the highest-precedence existing configuration file in case no entry is found.
+    highestPrecedenceRead ??= read;
+
+    const entry = getMcpEntry(read.config, mcpName);
+    if (entry?.url) {
+      const parsed = parseMcpUrl(entry.url);
+      if (parsed?.domain) {
+        return { kind: 'configured', read, entry, parsed };
+      }
+    }
+  }
+
+  if (highestPrecedenceRead) {
+    return { kind: 'not-setup', read: highestPrecedenceRead };
+  }
+
+  return { kind: 'not-setup', read: { status: 'missing' } };
 };
 
 export const malformedConfigMessage = (state: Extract<ServerState, { kind: 'malformed-config' }>): string =>

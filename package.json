@@ -25,6 +25,9 @@
     "NOTICE",
     "LICENSE-3rdparty.csv"
   ],
+  "scripts": {
+    "test": "bun test"
+  },
   "dependencies": {
     "@opencode/plugin": "^2.0.0",
     "jsonc-parser": "^3.3.1"
