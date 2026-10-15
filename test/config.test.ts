@@ -193,3 +193,60 @@ describe('loadServerState and persistEntry across multi-file config precedence',
     expect(rootContent.mcp.servers).toBeUndefined();
   });
 });
+
+describe('config source selection', () => {
+  let directory: string;
+
+  beforeEach(async () => {
+    directory = await mkdtemp(join(tmpdir(), 'dd-source-test-'));
+    await mkdir(join(directory, '.opencode'));
+  });
+
+  afterEach(async () => {
+    await rm(directory, { recursive: true, force: true });
+  });
+
+  it.each(['.', '.opencode'])('prefers JSONC over JSON in %s', async (folder) => {
+    for (const extension of ['json', 'jsonc']) {
+      await writeFile(join(directory, folder, `opencode.${extension}`), JSON.stringify({
+        mcp: { servers: { datadog: { type: 'remote', url: `https://${extension}.example` } } },
+      }));
+    }
+    const state = await loadServerState(directory, 'datadog');
+    expect(state.kind).toBe('configured');
+    if (state.kind !== 'configured') throw new Error('Expected configured server');
+    expect(state.read.file).toBe(join(folder, 'opencode.jsonc'));
+    expect(state.parsed.domain).toBe('jsonc.example');
+  });
+
+  it('does not fall back to a shadowed server when the winning URL is invalid', async () => {
+    await writeFile(join(directory, '.opencode', 'opencode.json'), JSON.stringify({
+      mcp: { servers: { datadog: { type: 'remote', url: 'invalid' } } },
+    }));
+    await writeFile(join(directory, 'opencode.json'), JSON.stringify({
+      mcp: { servers: { datadog: { type: 'remote', url: 'https://mcp.datadoghq.com' } } },
+    }));
+    const state = await loadServerState(directory, 'datadog');
+    expect(state.kind).toBe('not-setup');
+    if (state.kind !== 'not-setup' || state.read.status !== 'parsed') throw new Error('Expected source file');
+    expect(state.read.file).toBe(join('.opencode', 'opencode.json'));
+  });
+
+  it('updates the legacy entry without copying it into another server namespace', async () => {
+    const legacy = {
+      type: 'remote', url: 'https://mcp.datadoghq.com', enabled: false,
+      timeout: 12000, oauth: { clientId: 'legacy-client' },
+    };
+    const other = { type: 'remote', url: 'https://other.example' };
+    await writeFile(join(directory, 'opencode.json'), JSON.stringify({
+      mcp: { datadog: legacy, servers: { other } },
+    }));
+    const state = await loadServerState(directory, 'datadog');
+    if (state.kind !== 'configured') throw new Error('Expected configured server');
+    const updated = { ...state.entry, url: 'https://mcp.datadoghq.eu' };
+    await persistEntry(directory, state.read, 'datadog', updated);
+    const config = JSON.parse(await readFile(join(directory, 'opencode.json'), 'utf8'));
+    expect(config.mcp.datadog).toEqual(updated);
+    expect(config.mcp.servers).toEqual({ other });
+  });
+});

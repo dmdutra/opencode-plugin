@@ -1,15 +1,12 @@
 // Unless explicitly stated otherwise all files in this repository are licensed under the Apache-2.0 License.
 // This product includes software developed at Datadog (https://www.datadoghq.com/) Copyright 2026 Datadog, Inc.
 
-// opencode.json / opencode.jsonc I/O, server-state reads, and live MCP
-// management (`applyMcpServer`). Grouped into one module
-// because they share the `McpEntry` shape and the `oauth: false` preservation
-// rule needs to live in one place.
+// opencode.json / opencode.jsonc I/O and server-state reads.
+// OpenCode watches these files and reloads the resolved MCP configuration.
 
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
 import { type ParseError, applyEdits, modify, parse as parseJsonc, printParseErrorCode } from 'jsonc-parser';
-import type { MCPDomain } from '@opencode/plugin/promise/mcp';
 
 import { type ParsedUrl, parseMcpUrl } from './url.js';
 
@@ -30,10 +27,10 @@ export type OpenCodeConfig = {
 };
 
 export const CONFIG_FILES = [
-  join('.opencode', 'opencode.json'),
   join('.opencode', 'opencode.jsonc'),
-  'opencode.json',
+  join('.opencode', 'opencode.json'),
   'opencode.jsonc',
+  'opencode.json',
 ] as const;
 
 export type ReadResult =
@@ -94,7 +91,7 @@ export const getMcpEntry = (config: OpenCodeConfig, mcpName: string): McpEntry |
 };
 
 export const getMcpPath = (config: OpenCodeConfig, mcpName: string): (string | number)[] => {
-  if (config.mcp?.servers && typeof config.mcp.servers === 'object') {
+  if (config.mcp?.servers?.[mcpName]) {
     return ['mcp', 'servers', mcpName];
   }
   if (config.mcp?.[mcpName] && typeof config.mcp[mcpName] === 'object' && 'url' in config.mcp[mcpName]) {
@@ -133,6 +130,8 @@ export type ServerState =
 
 export const loadServerState = async (dir: string, mcpName: string): Promise<ServerState> => {
   let highestPrecedenceRead: Extract<ReadResult, { status: 'parsed' }> | undefined;
+  let source: Extract<ReadResult, { status: 'parsed' }> | undefined;
+  let entry: McpEntry | undefined;
 
   for (const file of CONFIG_FILES) {
     const read = await readConfigFile(dir, file);
@@ -146,13 +145,19 @@ export const loadServerState = async (dir: string, mcpName: string): Promise<Ser
     // Keep track of the highest-precedence existing configuration file in case no entry is found.
     highestPrecedenceRead ??= read;
 
-    const entry = getMcpEntry(read.config, mcpName);
-    if (entry?.url) {
-      const parsed = parseMcpUrl(entry.url);
-      if (parsed?.domain) {
-        return { kind: 'configured', read, entry, parsed };
+    if (!source) {
+      const candidate = getMcpEntry(read.config, mcpName);
+      if (candidate) {
+        source = read;
+        entry = candidate;
       }
     }
+  }
+
+  if (source && entry) {
+    const parsed = entry.url ? parseMcpUrl(entry.url) : null;
+    if (parsed?.domain) return { kind: 'configured', read: source, entry, parsed };
+    return { kind: 'not-setup', read: source };
   }
 
   if (highestPrecedenceRead) {
@@ -167,23 +172,3 @@ export const malformedConfigMessage = (state: Extract<ServerState, { kind: 'malf
     `Your ${state.file} could not be parsed: ${state.reason}.`,
     'Fix the syntax error manually before using Datadog tools. The plugin will not overwrite a malformed config.',
   ].join('\n');
-
-export const applyMcpServer = async (
-  mcp: MCPDomain | undefined,
-  mcpName: string,
-  url: string,
-  oauth: McpEntry['oauth'],
-): Promise<void> => {
-  if (!mcp) return;
-  await mcp.transform((editor) => {
-    editor.set(mcpName, {
-      type: 'remote',
-      url,
-      ...(oauth === false ? { oauth: false } : {}),
-    });
-  });
-  await mcp.reload();
-};
-
-export const addMcpServer = applyMcpServer;
-export const reconnectMcpServer = applyMcpServer;

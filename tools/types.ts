@@ -1,7 +1,6 @@
 // Unless explicitly stated otherwise all files in this repository are licensed under the Apache-2.0 License.
 // This product includes software developed at Datadog (https://www.datadoghq.com/) Copyright 2026 Datadog, Inc.
 
-import type { MCPDomain } from '@opencode/plugin/promise/mcp';
 import type { UrlBuilder } from '../url.js';
 
 // Shared dependency record the entry file builds once and hands to each tool
@@ -11,5 +10,4 @@ export type ToolDeps = {
   directory: string;
   urls: UrlBuilder;
   mcpName: string;
-  mcp?: MCPDomain;
 };

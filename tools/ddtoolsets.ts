@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed under the Apache-2.0 License.
 // This product includes software developed at Datadog (https://www.datadoghq.com/) Copyright 2026 Datadog, Inc.
 
-import { type McpEntry, applyMcpServer, loadServerState, malformedConfigMessage, persistEntry } from '../config.js';
+import { type McpEntry, loadServerState, malformedConfigMessage, persistEntry } from '../config.js';
 import { formatToolsetList, lines, parseToolsetList } from '../text.js';
 import type { ToolDeps } from './types.js';
 
@@ -39,7 +39,7 @@ const computeNewToolsets = (
   return next;
 };
 
-export const createDdtoolsets = ({ mcp, directory, urls, mcpName }: ToolDeps) => ({
+export const createDdtoolsets = ({ directory, urls, mcpName }: ToolDeps) => ({
   name: 'ddtoolsets',
   description: [
     'View and manage Datadog MCP server toolsets.',
@@ -103,15 +103,8 @@ export const createDdtoolsets = ({ mcp, directory, urls, mcpName }: ToolDeps) =>
     const label =
       action === 'reset' ? 'Toolsets reset to server defaults.' : `Toolsets updated: ${formatToolsetList(next)}`;
 
-    try {
-      await applyMcpServer(mcp, mcpName, newUrl, entry.oauth);
-      return {
-        content: lines(label, '', 'The MCP server is reconnecting with the updated toolsets.'),
-      };
-    } catch {
-      return {
-        content: lines(label, '', 'The user needs to restart OpenCode for the changes to take effect.'),
-      };
-    }
+    return {
+      content: lines(label, '', 'Configuration saved. OpenCode will reload the MCP server automatically.'),
+    };
   },
 });

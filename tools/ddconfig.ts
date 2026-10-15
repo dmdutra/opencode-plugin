@@ -1,12 +1,12 @@
 // Unless explicitly stated otherwise all files in this repository are licensed under the Apache-2.0 License.
 // This product includes software developed at Datadog (https://www.datadoghq.com/) Copyright 2026 Datadog, Inc.
 
-import { type McpEntry, applyMcpServer, loadServerState, malformedConfigMessage, persistEntry } from '../config.js';
+import { type McpEntry, loadServerState, malformedConfigMessage, persistEntry } from '../config.js';
 import { SITE_TABLE, domainToSite, isKnownDomain, resolveSiteToDomain } from '../site.js';
 import { lines } from '../text.js';
 import type { ToolDeps } from './types.js';
 
-export const createDdconfig = ({ mcp, directory, urls, mcpName }: ToolDeps) => ({
+export const createDdconfig = ({ directory, urls, mcpName }: ToolDeps) => ({
   name: 'ddconfig',
   description: [
     'Configure or troubleshoot the Datadog MCP server.',
@@ -97,22 +97,15 @@ export const createDdconfig = ({ mcp, directory, urls, mcpName }: ToolDeps) => (
       const newSite = domainToSite(newDomain);
       const header = `Domain changed from ${currentDomain} to ${newDomain}${newSite ? ` (${newSite})` : ''}.`;
 
-      try {
-        await applyMcpServer(mcp, mcpName, newUrl, entry.oauth);
-        return {
-          content: lines(
-            header,
-            unknownDomainNote,
-            '',
-            'The MCP server is reconnecting.',
-            'If authentication is required, follow the prompt from OpenCode or use `/mcps` to complete sign-in.',
-          ),
-        };
-      } catch {
-        return {
-          content: lines(header, unknownDomainNote, '', 'Restart OpenCode for the changes to take effect.'),
-        };
-      }
+      return {
+        content: lines(
+          header,
+          unknownDomainNote,
+          '',
+          'Configuration saved. OpenCode will reload the MCP server automatically.',
+          'If authentication is required, follow the prompt from OpenCode or use `/mcps` to complete sign-in.',
+        ),
+      };
     }
 
     // action === 'troubleshoot'

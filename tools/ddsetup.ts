@@ -1,12 +1,12 @@
 // Unless explicitly stated otherwise all files in this repository are licensed under the Apache-2.0 License.
 // This product includes software developed at Datadog (https://www.datadoghq.com/) Copyright 2026 Datadog, Inc.
 
-import { type McpEntry, applyMcpServer, loadServerState, malformedConfigMessage, persistEntry } from '../config.js';
+import { type McpEntry, loadServerState, malformedConfigMessage, persistEntry } from '../config.js';
 import { SITE_TABLE, isKnownDomain, resolveSiteToDomain } from '../site.js';
 import { lines } from '../text.js';
 import type { ToolDeps } from './types.js';
 
-export const createDdsetup = ({ mcp, directory, urls, mcpName }: ToolDeps) => ({
+export const createDdsetup = ({ directory, urls, mcpName }: ToolDeps) => ({
   name: 'ddsetup',
   description: [
     'Set up the Datadog MCP server for the first time.',
@@ -60,14 +60,6 @@ export const createDdsetup = ({ mcp, directory, urls, mcpName }: ToolDeps) => ({
     const entry: McpEntry = { type: 'remote', url, oauth: {} };
     await persistEntry(directory, state.read, mcpName, entry);
 
-    let runtimeNote: string | false = false;
-    try {
-      await applyMcpServer(mcp, mcpName, url, {});
-    } catch {
-      runtimeNote =
-        'Note: the server could not be registered in the current session. The user should restart OpenCode.';
-    }
-
     return {
       content: lines(
         `The Datadog MCP server has been configured with domain: ${domain}`,
@@ -80,7 +72,7 @@ export const createDdsetup = ({ mcp, directory, urls, mcpName }: ToolDeps) => ({
         '',
         'After authentication completes, Datadog tools will become available in this session.',
         'Do NOT attempt to use any Datadog MCP tools until authentication is confirmed complete.',
-        runtimeNote,
+        'Configuration saved. OpenCode will reload the MCP server automatically.',
       ),
     };
   },

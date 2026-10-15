@@ -18,7 +18,6 @@ export default Plugin.define({
   async setup(ctx) {
     const urls = makeUrlBuilder({ clientId: PLUGIN_ID, version: PLUGIN_VERSION });
     const deps = {
-      mcp: ctx.mcp,
       directory: ctx.location.directory,
       urls,
       mcpName: MCP_NAME,
